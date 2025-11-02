@@ -50,9 +50,24 @@
         </div>
         <div class="batch-actions">
           <el-button size="small" @click="clearSelection">取消选择</el-button>
-          <el-button size="small" type="danger" :icon="Delete" @click="handleBatchDelete">
-            批量删除
-          </el-button>
+          <el-dropdown @command="handleBatchCommand">
+            <el-button size="small" type="primary">
+              批量操作 <el-icon class="el-icon--right"><arrow-down /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="delete" :icon="Delete">
+                  批量删除
+                </el-dropdown-item>
+                <el-dropdown-item command="merge" :icon="Promotion" divided>
+                  合并标签
+                </el-dropdown-item>
+                <el-dropdown-item command="color" :icon="BrushFilled">
+                  修改颜色
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </transition>
@@ -277,6 +292,87 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 批量合并对话框 -->
+    <el-dialog
+      v-model="showMergeDialog"
+      title="批量合并标签"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        type="info"
+        :closable="false"
+        style="margin-bottom: 16px"
+      >
+        将 {{ selectedIds.length }} 个选中标签合并到目标标签，关联的文章将更新为目标标签
+      </el-alert>
+      
+      <el-form label-width="100px">
+        <el-form-item label="目标标签" required>
+          <el-select 
+            v-model="mergeTargetId" 
+            placeholder="选择要合并到的标签"
+            filterable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="tag in availableMergeTargets"
+              :key="tag.id"
+              :label="tag.name"
+              :value="tag.id"
+            >
+              <span :style="{ color: tag.color || '#409eff' }">●</span>
+              {{ tag.name }}
+            </el-option>
+          </el-select>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showMergeDialog = false">取消</el-button>
+          <el-button type="primary" @click="confirmMerge">
+            确认合并
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 批量更新颜色对话框 -->
+    <el-dialog
+      v-model="showColorDialog"
+      title="批量更新颜色"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        type="info"
+        :closable="false"
+        style="margin-bottom: 16px"
+      >
+        为 {{ selectedIds.length }} 个选中标签设置相同的颜色
+      </el-alert>
+      
+      <el-form label-width="100px">
+        <el-form-item label="标签颜色" required>
+          <el-color-picker
+            v-model="batchColor"
+            :predefine="presetColors"
+            show-alpha
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showColorDialog = false">取消</el-button>
+          <el-button type="primary" @click="confirmColorUpdate">
+            确认更新
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -284,9 +380,18 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Refresh, Search, Edit, Delete, Grid, Postcard, Document, Clock, InfoFilled
+  Plus, Refresh, Search, Edit, Delete, Grid, Postcard, Document, Clock, InfoFilled, ArrowDown, Promotion, BrushFilled
 } from '@element-plus/icons-vue'
-import { getTags, getTagById, createTag, updateTag, deleteTag } from '@/api/tag'
+import { 
+  getTags, 
+  getTagById, 
+  createTag, 
+  updateTag, 
+  deleteTag,
+  batchDeleteTags,
+  batchMergeTags,
+  batchUpdateTagColor
+} from '@/api/tag'
 import type { Tag, TagFormData } from '@/types'
 
 // 响应式数据
@@ -298,6 +403,10 @@ const currentView = ref('table')
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
+const showMergeDialog = ref(false)
+const showColorDialog = ref(false)
+const mergeTargetId = ref<number | undefined>(undefined)
+const batchColor = ref('')
 
 // 分页
 const pagination = reactive({
@@ -350,8 +459,12 @@ const filteredTags = computed(() => {
   return result.slice(start, end)
 })
 
+const availableMergeTargets = computed(() => {
+  return tags.value.filter(tag => !selectedIds.value.includes(tag.id))
+})
+
 // 方法
-const fetchTags = async () => {
+const loadTags = async () => {
   loading.value = true
   try {
     const data = await getTags()
@@ -394,7 +507,7 @@ const handleDelete = async (id: number) => {
   try {
     await deleteTag(id)
     ElMessage.success('删除成功')
-    await fetchTags()
+    await loadTags()
   } catch (error) {
     ElMessage.error('删除失败')
     console.error(error)
@@ -416,7 +529,7 @@ const handleSubmit = async () => {
     }
     
     dialogVisible.value = false
-    await fetchTags()
+    await loadTags()
   } catch (error: any) {
     if (error !== false) {
       ElMessage.error(isEdit.value ? '更新失败' : '创建失败')
@@ -444,58 +557,103 @@ const handlePageChange = (page: number) => {
   pagination.page = page
 }
 
+const handleBatchCommand = (command: string) => {
+  if (selectedIds.value.length === 0) {
+    ElMessage.warning('请至少选择一个标签')
+    return
+  }
+  
+  switch (command) {
+    case 'delete':
+      handleBatchDelete()
+      break
+    case 'merge':
+      showMergeDialog.value = true
+      break
+    case 'color':
+      showColorDialog.value = true
+      break
+  }
+}
+
+const handleBatchDelete = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `确认要删除选中的 ${selectedIds.value.length} 个标签吗？`, 
+      '批量删除',
+      {
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const res = await batchDeleteTags({ tagIds: selectedIds.value })
+    ElMessage.success(`成功删除 ${res.data.successCount} 个标签`)
+    
+    if (res.data.failures.length > 0) {
+      ElMessage.warning(`${res.data.failures.length} 个标签删除失败`)
+    }
+    
+    selectedIds.value = []
+    loadTags()
+  } catch (err: any) {
+    if (err !== 'cancel') {
+      ElMessage.error(err.message || '批量删除失败')
+    }
+  }
+}
+
+const confirmMerge = async () => {
+  if (!mergeTargetId.value) {
+    ElMessage.warning('请选择目标标签')
+    return
+  }
+  
+  try {
+    await batchMergeTags({
+      sourceTagIds: selectedIds.value,
+      targetTagId: mergeTargetId.value
+    })
+    
+    ElMessage.success('标签合并成功')
+    showMergeDialog.value = false
+    mergeTargetId.value = undefined
+    selectedIds.value = []
+    loadTags()
+  } catch (err: any) {
+    ElMessage.error(err.message || '标签合并失败')
+  }
+}
+
+const confirmColorUpdate = async () => {
+  if (!batchColor.value) {
+    ElMessage.warning('请选择颜色')
+    return
+  }
+  
+  try {
+    await batchUpdateTagColor({
+      tagIds: selectedIds.value,
+      color: batchColor.value
+    })
+    
+    ElMessage.success(`成功更新 ${selectedIds.value.length} 个标签的颜色`)
+    showColorDialog.value = false
+    batchColor.value = ''
+    selectedIds.value = []
+    loadTags()
+  } catch (err: any) {
+    ElMessage.error(err.message || '批量更新颜色失败')
+  }
+}
+
 const handleSelectionChange = (selection: Tag[]) => {
   selectedIds.value = selection.map(item => item.id)
 }
 
 const clearSelection = () => {
   selectedIds.value = []
-}
-
-const handleBatchDelete = async () => {
-  if (selectedIds.value.length === 0) {
-    ElMessage.warning('请选择要删除的标签')
-    return
-  }
-
-  // 检查是否有标签被使用
-  const tagsWithArticles = tags.value.filter(
-    tag => selectedIds.value.includes(tag.id) && (tag.article_count || 0) > 0
-  )
-  
-  if (tagsWithArticles.length > 0) {
-    ElMessage.warning(
-      `选中的标签中有 ${tagsWithArticles.length} 个已被使用，无法删除`
-    )
-    return
-  }
-
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedIds.value.length} 个标签吗？`,
-      '批量删除',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-
-    loading.value = true
-    const promises = selectedIds.value.map(id => deleteTag(id))
-    await Promise.all(promises)
-    
-    ElMessage.success(`成功删除 ${selectedIds.value.length} 个标签`)
-    selectedIds.value = []
-    await fetchTags()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error('批量删除失败')
-      console.error(error)
-    }
-  } finally {
-    loading.value = false
-  }
 }
 
 // 工具方法
@@ -526,7 +684,7 @@ const getArticleCountType = (count: number) => {
 
 // 生命周期
 onMounted(() => {
-  fetchTags()
+  loadTags()
 })
 </script>
 

@@ -37,3 +37,38 @@ export interface UpdateCommentParams {
   content?: string
   is_approved?: boolean
 }
+
+/**
+ * 批量删除评论参数
+ */
+export interface BatchDeleteCommentsParams {
+  commentIds: number[]
+}
+
+/**
+ * 批量删除评论响应
+ */
+export interface BatchDeleteCommentsResponse {
+  successCount: number
+  totalCount: number
+  failures: Array<{
+    commentId: number
+    reason: string
+  }>
+}
+
+/**
+ * 批量审核评论参数
+ */
+export interface BatchApproveCommentsParams {
+  commentIds: number[]
+  isApproved: boolean
+}
+
+/**
+ * 批量审核评论响应
+ */
+export interface BatchApproveCommentsResponse {
+  affectedCount: number
+  comments: Comment[]
+}

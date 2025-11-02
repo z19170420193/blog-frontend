@@ -25,3 +25,58 @@ export interface CategoryFormData {
   description?: string
   sort_order?: number
 }
+
+/**
+ * 批量删除参数
+ */
+export interface BatchDeleteCategoriesParams {
+  ids: number[]
+}
+
+/**
+ * 批量更新排序参数
+ */
+export interface BatchUpdateOrderParams {
+  orders: Array<{
+    id: number
+    sort_order: number
+  }>
+}
+
+/**
+ * 批量合并分类参数
+ */
+export interface BatchMergeCategoriesParams {
+  source_ids: number[]
+  target_id: number
+}
+
+/**
+ * 批量删除响应
+ */
+export interface BatchDeleteCategoriesResponse {
+  deleted_count: number
+  total_count: number
+  errors: string[] | null
+}
+
+/**
+ * 批量更新排序响应
+ */
+export interface BatchUpdateOrderResponse {
+  updated_count: number
+  categories: Category[]
+}
+
+/**
+ * 批量合并分类响应
+ */
+export interface BatchMergeCategoriesResponse {
+  merged_categories: number
+  migrated_articles: number
+  target_category: {
+    id: number
+    name: string
+    article_count: number
+  }
+}

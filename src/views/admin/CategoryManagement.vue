@@ -37,9 +37,21 @@
         </div>
         <div class="batch-actions">
           <el-button size="small" @click="clearSelection">取消选择</el-button>
-          <el-button size="small" type="danger" :icon="Delete" @click="handleBatchDelete">
-            批量删除
-          </el-button>
+          <el-dropdown @command="handleBatchCommand">
+            <el-button size="small" type="primary">
+              批量操作 <el-icon class="el-icon--right"><arrow-down /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="delete" :icon="Delete">
+                  批量删除
+                </el-dropdown-item>
+                <el-dropdown-item command="merge" :icon="Promotion" divided>
+                  合并分类
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </transition>
@@ -148,6 +160,65 @@
         />
       </div>
 
+    <!-- 批量合并对话框 -->
+    <el-dialog
+      v-model="mergeDialogVisible"
+      title="合并分类"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        title="合并说明"
+        type="info"
+        :closable="false"
+        style="margin-bottom: 20px"
+      >
+        将选中的 {{ selectedIds.length }} 个分类合并到目标分类，所有文章将被迁移至目标分类
+      </el-alert>
+      
+      <el-form label-width="100px">
+        <el-form-item label="目标分类" required>
+          <el-select
+            v-model="mergeTargetId"
+            placeholder="请选择目标分类"
+            style="width: 100%"
+            filterable
+          >
+            <el-option
+              v-for="cat in availableMergeTargets"
+              :key="cat.id"
+              :label="`${cat.name} (已有 ${cat.article_count || 0} 篇文章)`"
+              :value="cat.id"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="选中分类">
+          <el-tag
+            v-for="id in selectedIds"
+            :key="id"
+            style="margin-right: 8px; margin-bottom: 8px"
+          >
+            {{ getCategoryNameById(id) }}
+          </el-tag>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="mergeDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="submitting"
+            :disabled="!mergeTargetId"
+            @click="handleMergeConfirm"
+          >
+            确定合并
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 创建/编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -224,9 +295,18 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Refresh, Search, Edit, Delete, InfoFilled
+  Plus, Refresh, Search, Edit, Delete, InfoFilled, ArrowDown, Promotion
 } from '@element-plus/icons-vue'
-import { getCategories, getCategoryById, createCategory, updateCategory, deleteCategory } from '@/api/category'
+import { 
+  getCategories, 
+  getCategoryById, 
+  createCategory, 
+  updateCategory, 
+  deleteCategory,
+  batchDeleteCategories,
+  batchUpdateOrder,
+  batchMergeCategories
+} from '@/api/category'
 import type { Category, CategoryFormData } from '@/types'
 
 // 响应式数据
@@ -237,6 +317,8 @@ const searchKeyword = ref('')
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
+const mergeDialogVisible = ref(false)
+const mergeTargetId = ref<number | null>(null)
 
 // 分页
 const pagination = reactive({
@@ -288,6 +370,11 @@ const filteredCategories = computed(() => {
   const start = (pagination.page - 1) * pagination.limit
   const end = start + pagination.limit
   return result.slice(start, end)
+})
+
+const availableMergeTargets = computed(() => {
+  // 过滤掉已选中的分类
+  return categories.value.filter(cat => !selectedIds.value.includes(cat.id))
 })
 
 // 方法
@@ -405,40 +492,49 @@ const clearSelection = () => {
   selectedIds.value = []
 }
 
-const handleBatchDelete = async () => {
+const handleBatchCommand = async (command: string) => {
   if (selectedIds.value.length === 0) {
-    ElMessage.warning('请选择要删除的分类')
+    ElMessage.warning('请选择要操作的分类')
     return
   }
 
-  // 检查是否有分类包含文章
-  const categoriesWithArticles = categories.value.filter(
-    cat => selectedIds.value.includes(cat.id) && (cat.article_count || 0) > 0
-  )
-  
-  if (categoriesWithArticles.length > 0) {
-    ElMessage.warning(
-      `选中的分类中有 ${categoriesWithArticles.length} 个包含文章，无法删除`
-    )
-    return
+  switch (command) {
+    case 'delete':
+      await handleBatchDelete()
+      break
+    case 'merge':
+      await showMergeDialog()
+      break
   }
+}
 
+const handleBatchDelete = async () => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedIds.value.length} 个分类吗？`,
+      `确定要删除选中的 ${selectedIds.value.length} 个分类吗？<br>
+      <span style="color: #f56c6c; font-size: 12px;">注意：包含文章的分类将被跳过</span>`,
       '批量删除',
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'warning'
+        type: 'warning',
+        dangerouslyUseHTMLString: true
       }
     )
 
     loading.value = true
-    const promises = selectedIds.value.map(id => deleteCategory(id))
-    await Promise.all(promises)
+    const response: any = await batchDeleteCategories({ ids: selectedIds.value })
     
-    ElMessage.success(`成功删除 ${selectedIds.value.length} 个分类`)
+    if (response.data?.errors && response.data.errors.length > 0) {
+      ElMessageBox.alert(
+        response.data.errors.join('\n'),
+        '部分分类删除失败',
+        { type: 'warning' }
+      )
+    } else {
+      ElMessage.success(`成功删除 ${response.data.deleted_count} 个分类`)
+    }
+    
     selectedIds.value = []
     await fetchCategories()
   } catch (error: any) {
@@ -449,6 +545,69 @@ const handleBatchDelete = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const showMergeDialog = () => {
+  if (selectedIds.value.length < 2) {
+    ElMessage.warning('请至少选择两个分类进行合并')
+    return
+  }
+  
+  if (availableMergeTargets.value.length === 0) {
+    ElMessage.warning('没有可用的目标分类')
+    return
+  }
+  
+  mergeTargetId.value = null
+  mergeDialogVisible.value = true
+}
+
+const handleMergeConfirm = async () => {
+  if (!mergeTargetId.value) {
+    ElMessage.warning('请选择目标分类')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要将 ${selectedIds.value.length} 个分类合并到 "${getCategoryNameById(mergeTargetId.value)}" 吗？<br>
+      <span style="color: #f56c6c; font-size: 12px;">此操作不可逆，所有文章将被迁移至目标分类</span>`,
+      '确认合并',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+        dangerouslyUseHTMLString: true
+      }
+    )
+
+    submitting.value = true
+    const response: any = await batchMergeCategories({
+      source_ids: selectedIds.value,
+      target_id: mergeTargetId.value
+    })
+    
+    ElMessage.success(
+      `成功合并 ${response.data.merged_categories} 个分类，` +
+      `迁移了 ${response.data.migrated_articles} 篇文章`
+    )
+    
+    mergeDialogVisible.value = false
+    selectedIds.value = []
+    await fetchCategories()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error('合并分类失败')
+      console.error(error)
+    }
+  } finally {
+    submitting.value = false
+  }
+}
+
+const getCategoryNameById = (id: number) => {
+  const category = categories.value.find(cat => cat.id === id)
+  return category ? category.name : `ID: ${id}`
 }
 
 // 工具方法

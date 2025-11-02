@@ -1,5 +1,14 @@
 import { http } from './request'
-import type { Comment, CommentFormData, UpdateCommentParams, PaginationParams } from '@/types'
+import type { 
+  Comment, 
+  CommentFormData, 
+  UpdateCommentParams, 
+  PaginationParams,
+  BatchDeleteCommentsParams,
+  BatchDeleteCommentsResponse,
+  BatchApproveCommentsParams,
+  BatchApproveCommentsResponse
+} from '@/types'
 
 /**
  * 获取所有评论列表（管理后台）
@@ -50,4 +59,18 @@ export const deleteComment = (id: number) => {
  */
 export const approveComment = (id: number, isApproved: boolean) => {
   return http.put<Comment>(`/comments/${id}/approve`, { is_approved: isApproved })
+}
+
+/**
+ * 批量删除评论
+ */
+export const batchDeleteComments = (data: BatchDeleteCommentsParams) => {
+  return http.post<BatchDeleteCommentsResponse>('/comments/batch/delete', data)
+}
+
+/**
+ * 批量审核评论
+ */
+export const batchApproveComments = (data: BatchApproveCommentsParams) => {
+  return http.post<BatchApproveCommentsResponse>('/comments/batch/approve', data)
 }

@@ -225,7 +225,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Refresh, Search, Edit, Delete, Select, Message, Clock, InfoFilled
 } from '@element-plus/icons-vue'
-import { getAllComments, updateComment, deleteComment, approveComment } from '@/api/comment'
+import { 
+  getAllComments, 
+  updateComment, 
+  deleteComment, 
+  approveComment,
+  batchDeleteComments,
+  batchApproveComments
+} from '@/api/comment'
 import type { Comment, UpdateCommentParams } from '@/types'
 
 // 响应式数据
@@ -372,10 +379,16 @@ const handleBatchDelete = async () => {
     )
 
     loading.value = true
-    const promises = selectedIds.value.map(id => deleteComment(id))
-    await Promise.all(promises)
+    const result = await batchDeleteComments({ commentIds: selectedIds.value })
     
-    ElMessage.success(`成功删除 ${selectedIds.value.length} 条评论`)
+    if (result.failures.length > 0) {
+      ElMessage.warning(
+        `删除完成：成功 ${result.successCount} 条，失败 ${result.failures.length} 条`
+      )
+    } else {
+      ElMessage.success(`成功删除 ${result.successCount} 条评论`)
+    }
+    
     selectedIds.value = []
     await fetchComments()
   } catch (error: any) {
@@ -406,10 +419,12 @@ const handleBatchApprove = async () => {
     )
 
     loading.value = true
-    const promises = selectedIds.value.map(id => approveComment(id, true))
-    await Promise.all(promises)
+    const result = await batchApproveComments({ 
+      commentIds: selectedIds.value, 
+      isApproved: true 
+    })
     
-    ElMessage.success(`成功审核 ${selectedIds.value.length} 条评论`)
+    ElMessage.success(`成功审核 ${result.affectedCount} 条评论`)
     selectedIds.value = []
     await fetchComments()
   } catch (error: any) {
