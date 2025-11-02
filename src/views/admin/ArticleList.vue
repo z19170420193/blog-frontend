@@ -82,9 +82,30 @@
         </div>
         <div class="batch-actions">
           <el-button size="small" @click="clearSelection">取消选择</el-button>
-          <el-button size="small" type="danger" :icon="Delete" @click="handleBatchDelete">
-            批量删除
-          </el-button>
+          <el-dropdown @command="handleBatchCommand">
+            <el-button size="small" type="primary">
+              批量操作 <el-icon class="el-icon--right"><arrow-down /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="publish">
+                  <el-icon><Upload /></el-icon> 批量发布
+                </el-dropdown-item>
+                <el-dropdown-item command="draft">
+                  <el-icon><Document /></el-icon> 转为草稿
+                </el-dropdown-item>
+                <el-dropdown-item command="top" divided>
+                  <el-icon><Top /></el-icon> 批量置顶
+                </el-dropdown-item>
+                <el-dropdown-item command="untop">
+                  <el-icon><Bottom /></el-icon> 取消置顶
+                </el-dropdown-item>
+                <el-dropdown-item command="delete" divided>
+                  <el-icon><Delete /></el-icon> 批量删除
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </transition>
@@ -233,9 +254,17 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Refresh, Search, Edit, Delete, User, View, InfoFilled
+  Plus, Refresh, Search, Edit, Delete, User, View, InfoFilled,
+  ArrowDown, Upload, Document, Top, Bottom, Folder, CollectionTag
 } from '@element-plus/icons-vue'
-import { getArticles, deleteArticle, updateArticle } from '@/api/article'
+import { 
+  getArticles, 
+  deleteArticle, 
+  updateArticle, 
+  batchDeleteArticles,
+  batchUpdateArticleStatus,
+  batchUpdateArticleTop
+} from '@/api/article'
 import { getCategories } from '@/api/category'
 import { getTags } from '@/api/tag'
 import type { Article, ArticleQueryParams } from '@/types'
@@ -357,12 +386,32 @@ const clearSelection = () => {
   selectedIds.value = []
 }
 
-const handleBatchDelete = async () => {
+const handleBatchCommand = async (command: string) => {
   if (selectedIds.value.length === 0) {
-    ElMessage.warning('请选择要删除的文章')
+    ElMessage.warning('请选择要操作的文章')
     return
   }
 
+  switch (command) {
+    case 'publish':
+      await handleBatchUpdateStatus('published')
+      break
+    case 'draft':
+      await handleBatchUpdateStatus('draft')
+      break
+    case 'top':
+      await handleBatchUpdateTop(true)
+      break
+    case 'untop':
+      await handleBatchUpdateTop(false)
+      break
+    case 'delete':
+      await handleBatchDelete()
+      break
+  }
+}
+
+const handleBatchDelete = async () => {
   try {
     await ElMessageBox.confirm(
       `确定要删除选中的 ${selectedIds.value.length} 篇文章吗？`,
@@ -375,15 +424,101 @@ const handleBatchDelete = async () => {
     )
 
     loading.value = true
-    const promises = selectedIds.value.map(id => deleteArticle(id))
-    await Promise.all(promises)
+    const response: any = await batchDeleteArticles(selectedIds.value)
     
-    ElMessage.success(`成功删除 ${selectedIds.value.length} 篇文章`)
+    if (response.data?.errors && response.data.errors.length > 0) {
+      ElMessageBox.alert(
+        response.data.errors.join('\n'),
+        '部分文章删除失败',
+        { type: 'warning' }
+      )
+    } else {
+      ElMessage.success(`成功删除 ${response.data.deleted_count} 篇文章`)
+    }
+    
     selectedIds.value = []
     await fetchArticles()
   } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error('批量删除失败')
+      console.error(error)
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleBatchUpdateStatus = async (status: 'draft' | 'published') => {
+  const statusText = status === 'published' ? '发布' : '转为草稿'
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要将选中的 ${selectedIds.value.length} 篇文章${statusText}吗？`,
+      `批量${statusText}`,
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+
+    loading.value = true
+    const response: any = await batchUpdateArticleStatus(selectedIds.value, status)
+    
+    if (response.data?.errors && response.data.errors.length > 0) {
+      ElMessageBox.alert(
+        response.data.errors.join('\n'),
+        `部分文章${statusText}失败`,
+        { type: 'warning' }
+      )
+    } else {
+      ElMessage.success(`成功${statusText} ${response.data.affected_count} 篇文章`)
+    }
+    
+    selectedIds.value = []
+    await fetchArticles()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(`批量${statusText}失败`)
+      console.error(error)
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleBatchUpdateTop = async (is_top: boolean) => {
+  const actionText = is_top ? '置顶' : '取消置顶'
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要将选中的 ${selectedIds.value.length} 篇文章${actionText}吗？`,
+      `批量${actionText}`,
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+
+    loading.value = true
+    const response: any = await batchUpdateArticleTop(selectedIds.value, is_top)
+    
+    if (response.data?.errors && response.data.errors.length > 0) {
+      ElMessageBox.alert(
+        response.data.errors.join('\n'),
+        `部分文章${actionText}失败`,
+        { type: 'warning' }
+      )
+    } else {
+      ElMessage.success(`成功${actionText} ${response.data.affected_count} 篇文章`)
+    }
+    
+    selectedIds.value = []
+    await fetchArticles()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(`批量${actionText}失败`)
       console.error(error)
     }
   } finally {

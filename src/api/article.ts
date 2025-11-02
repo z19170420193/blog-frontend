@@ -36,3 +36,24 @@ export const updateArticle = (id: number, data: ArticleFormData) => {
 export const deleteArticle = (id: number) => {
   return http.delete(`/articles/${id}`)
 }
+
+/**
+ * 批量删除文章
+ */
+export const batchDeleteArticles = (ids: number[]) => {
+  return http.post('/articles/batch-delete', { ids })
+}
+
+/**
+ * 批量更新文章状态
+ */
+export const batchUpdateArticleStatus = (ids: number[], status: 'draft' | 'published') => {
+  return http.post('/articles/batch-update-status', { ids, status })
+}
+
+/**
+ * 批量更新文章置顶状态
+ */
+export const batchUpdateArticleTop = (ids: number[], is_top: boolean) => {
+  return http.post('/articles/batch-update-top', { ids, is_top })
+}
