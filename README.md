@@ -54,6 +54,8 @@ frontend/
 │   │   │   └── ShareButton.vue           # 分享按钮
 │   │   ├── editor/
 │   │   │   └── MarkdownEditor.vue        # Markdown 编辑器
+│   │   ├── media/
+│   │   │   └── MediaSelector.vue         # 媒体选择器 🆕
 │   │   ├── layout/
 │   │   │   ├── Header.vue                # 页面头部
 │   │   │   ├── Footer.vue                # 页面底部
@@ -240,6 +242,7 @@ npm run format
 - ✅ 文章草稿保存
 - ✅ 文章状态管理（草稿/已发布）
 - ✅ **批量操作**（批量删除、批量发布、批量置顶）
+- ✅ **媒体选择器** 🆕 - 统一的媒体文件选择组件
 - ✅ 数据统计图表（ECharts）
 - ✅ 密码强度验证（zxcvbn）
 - ✅ 表单验证
@@ -471,6 +474,221 @@ const article = ref<Article | null>(null)
    - 所有评论批量操作仅管理员可用
    - 分类/标签合并操作不可逆，请谨慎操作
    - 评论批量删除不可逆，请谨慎操作
+
+## 📸 媒体选择器组件 🆕
+
+### 组件介绍
+
+`MediaSelector` 是一个统一的媒体文件选择组件，提供完整的媒体库浏览、上传、选择功能。
+
+**位置**: `src/components/media/MediaSelector.vue`
+
+### 核心功能
+
+- ✅ **单选/多选模式** - 支持选择单个或多个媒体文件
+- ✅ **文件上传** - 内置上传功能，支持拖拽上传
+- ✅ **搜索筛选** - 按文件名搜索，按类型筛选
+- ✅ **分页加载** - 支持大量文件的分页浏览
+- ✅ **实时预览** - 网格视图展示文件缩略图
+- ✅ **文件限制** - 可配置文件类型、大小、数量限制
+- ✅ **返回格式** - 支持返回 URL 或完整对象
+
+### Props 配置
+
+```typescript
+interface MediaSelectorProps {
+  // 选择模式
+  mode?: 'single' | 'multiple'     // 单选/多选，默认 'single'
+  
+  // 文件限制
+  accept?: string                  // 接受的文件类型，默认 'image/*'
+  maxCount?: number                // 多选最大数量，默认 9
+  maxSize?: number                 // 单文件最大 MB，默认 5
+  
+  // 显示控制
+  showUpload?: boolean             // 显示上传按钮，默认 true
+  showSearch?: boolean             // 显示搜索框，默认 true
+  dialogTitle?: string             // 对话框标题
+  
+  // 返回格式
+  returnType?: 'url' | 'object'    // 返回 URL 还是完整对象，默认 'url'
+}
+```
+
+### 事件
+
+```typescript
+// 选择完成
+@select: (value: string | string[] | Media | Media[]) => void
+
+// 上传完成
+@upload: (media: Media) => void
+
+// 取消选择
+@cancel: () => void
+```
+
+### 使用示例
+
+#### 示例 1：文章封面选择（单选模式）
+
+```vue
+<template>
+  <div>
+    <!-- 输入框 + 选择按钮 -->
+    <el-input v-model="coverImage" placeholder="请选择封面图片">
+      <template #append>
+        <el-button @click="mediaSelectorRef?.open()" :icon="Picture">
+          选择
+        </el-button>
+      </template>
+    </el-input>
+
+    <!-- 媒体选择器 -->
+    <MediaSelector
+      ref="mediaSelectorRef"
+      mode="single"
+      return-type="url"
+      dialog-title="选择封面图片"
+      @select="handleCoverSelect"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Picture } from '@element-plus/icons-vue'
+import MediaSelector from '@/components/media/MediaSelector.vue'
+
+const coverImage = ref('')
+const mediaSelectorRef = ref()
+
+const handleCoverSelect = (url: string) => {
+  coverImage.value = url
+  ElMessage.success('封面图片已选择')
+}
+</script>
+```
+
+#### 示例 2：Markdown 编辑器插入图片（多选模式）
+
+```vue
+<template>
+  <div>
+    <!-- 工具栏按钮 -->
+    <el-button @click="mediaSelectorRef?.open()" :icon="Picture">
+      插入图片
+    </el-button>
+
+    <!-- 编辑器 -->
+    <el-input v-model="content" type="textarea" :rows="10" />
+
+    <!-- 媒体选择器 -->
+    <MediaSelector
+      ref="mediaSelectorRef"
+      mode="multiple"
+      :max-count="5"
+      return-type="url"
+      dialog-title="插入图片"
+      @select="handleImageInsert"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import MediaSelector from '@/components/media/MediaSelector.vue'
+
+const content = ref('')
+const mediaSelectorRef = ref()
+
+const handleImageInsert = (urls: string[]) => {
+  // 生成 Markdown 图片语法
+  const images = urls.map(url => `![图片](${url})`).join('\n')
+  content.value += images
+  
+  ElMessage.success(`已插入 ${urls.length} 张图片`)
+}
+</script>
+```
+
+#### 示例 3：返回完整对象
+
+```vue
+<template>
+  <MediaSelector
+    ref="mediaSelectorRef"
+    mode="single"
+    return-type="object"
+    @select="handleMediaSelect"
+  />
+</template>
+
+<script setup lang="ts">
+import type { Media } from '@/types'
+
+const handleMediaSelect = (media: Media) => {
+  console.log('选中的媒体文件:', media)
+  console.log('文件名:', media.filename)
+  console.log('URL:', media.file_url)
+  console.log('尺寸:', media.width, 'x', media.height)
+  console.log('大小:', media.file_size)
+}
+</script>
+```
+
+### 已集成页面
+
+媒体选择器已集成到以下页面：
+
+1. **文章编辑页** (`ArticleEdit.vue`)
+   - 封面图片选择
+   - 模式：单选
+   - 自动填充到 `cover_image` 字段
+
+2. **Markdown 编辑器** (`MarkdownEditor.vue`)
+   - 内容图片插入
+   - 模式：多选（最多 5 张）
+   - 自动生成 Markdown 图片语法
+
+### 技术特点
+
+- **响应式设计** - 网格布局自适应不同屏幕尺寸
+- **性能优化** - 图片懒加载，搜索防抖（500ms）
+- **用户体验** - 动画效果，选中状态反馈，操作提示
+- **类型安全** - 完整的 TypeScript 类型定义
+- **权限控制** - 自动携带认证 Token
+- **错误处理** - 完善的错误提示和异常处理
+
+### 样式特性
+
+- **选中效果** - 蓝色边框 + 选中徽章 + 背景色变化
+- **悬停效果** - 轻微放大 + 阴影加深
+- **过渡动画** - 选中徽章弹出动画（cubic-bezier）
+- **网格布局** - 自动填充，最小宽度 140px
+- **深色模式** - 暂不支持（计划中）
+
+### 方法
+
+组件通过 `defineExpose` 暴露以下方法：
+
+```typescript
+// 打开选择器
+mediaSelectorRef.value?.open()
+
+// 关闭选择器
+mediaSelectorRef.value?.close()
+```
+
+### 注意事项
+
+1. **后端支持** - 需要后端提供媒体列表和上传接口
+2. **Token 认证** - 自动从 localStorage 读取 token
+3. **文件类型** - 默认只接受图片，可通过 `accept` 自定义
+4. **文件大小** - 默认限制 5MB，可通过 `maxSize` 调整
+5. **浏览器兼容** - 使用 `loading="lazy"`，需要现代浏览器支持
 
 ## 🌐 浏览器支持
 

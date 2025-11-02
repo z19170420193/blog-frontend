@@ -135,11 +135,22 @@
         <div class="markdown-body" v-html="renderedHtml"></div>
       </div>
     </div>
+
+    <!-- 媒体选择器 -->
+    <MediaSelector
+      ref="mediaSelectorRef"
+      mode="multiple"
+      :max-count="5"
+      return-type="url"
+      dialog-title="插入图片"
+      @select="handleImageInsert"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import hljs from 'highlight.js'
@@ -155,6 +166,7 @@ import {
   Link,
   Picture,
 } from '@element-plus/icons-vue'
+import MediaSelector from '@/components/media/MediaSelector.vue'
 
 // Props
 interface Props {
@@ -175,6 +187,7 @@ const emit = defineEmits<{
 // 状态
 const content = ref(props.modelValue)
 const textareaRef = ref()
+const mediaSelectorRef = ref()
 const viewMode = ref<'edit' | 'split' | 'preview'>('split')
 const isFullscreen = ref(false)
 
@@ -304,13 +317,25 @@ const insertLink = () => {
 
 // 插入图片
 const insertImage = () => {
+  // 打开媒体选择器
+  mediaSelectorRef.value?.open()
+}
+
+// 图片选择完成
+const handleImageInsert = (urls: string | string[]) => {
   const { start } = getSelection()
   const before = content.value.substring(0, start)
   const after = content.value.substring(start)
 
-  const image = `![图片描述](图片URL)`
-  content.value = before + image + after
+  // 处理单个或多个图片
+  const urlArray = Array.isArray(urls) ? urls : [urls]
+  const images = urlArray.map(url => `![图片](${url})`).join('\n')
+
+  content.value = before + images + after
   emit('update:modelValue', content.value)
+
+  // 显示成功提示
+  ElMessage.success(`已插入 ${urlArray.length} 张图片`)
 }
 
 // 切换全屏

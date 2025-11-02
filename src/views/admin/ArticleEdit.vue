@@ -187,6 +187,15 @@
         </div>
       </div>
     </div>
+
+    <!-- 媒体选择器 -->
+    <MediaSelector
+      ref="mediaSelectorRef"
+      mode="single"
+      return-type="url"
+      dialog-title="选择封面图片"
+      @select="handleCoverSelect"
+    />
   </div>
 </template>
 
@@ -204,6 +213,7 @@ import {
 } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import MarkdownEditor from '@/components/editor/MarkdownEditor.vue'
+import MediaSelector from '@/components/media/MediaSelector.vue'
 import { getArticleById, createArticle, updateArticle } from '@/api/article'
 import { getCategories } from '@/api/category'
 import { getTags } from '@/api/tag'
@@ -221,6 +231,7 @@ const isPanelCollapsed = ref(false)
 const saving = ref(false)
 const publishing = ref(false)
 const formRef = ref<FormInstance>()
+const mediaSelectorRef = ref()
 
 // 表单数据
 const formData = reactive<ArticleFormData>({
@@ -303,8 +314,13 @@ const togglePanel = () => {
 
 // 选择图片
 const handleSelectImage = () => {
-  ElMessage.info('请从媒体库选择图片或输入图片URL')
-  // TODO: 打开媒体库选择对话框
+  mediaSelectorRef.value?.open()
+}
+
+// 封面选择完成
+const handleCoverSelect = (url: string) => {
+  formData.cover_image = url
+  ElMessage.success('封面图片已选择')
 }
 
 // 保存草稿
