@@ -1,0 +1,577 @@
+<template>
+  <div class="category-management">
+    <!-- 页面头部 -->
+    <div class="page-header">
+        <div class="header-left">
+          <h2>分类管理</h2>
+          <p class="subtitle">管理博客文章分类</p>
+        </div>
+        <div class="header-actions">
+          <el-button type="primary" :icon="Plus" @click="handleCreate">
+            新建分类
+          </el-button>
+          <el-button :icon="Refresh" @click="fetchCategories">
+            刷新
+          </el-button>
+        </div>
+      </div>
+
+    <!-- 搜索栏 -->
+    <div class="search-bar">
+      <el-input
+        v-model="searchKeyword"
+        placeholder="搜索分类名称..."
+        :prefix-icon="Search"
+        clearable
+        style="width: 300px"
+        @input="handleSearch"
+      />
+    </div>
+
+    <!-- 批量操作工具栏 -->
+    <transition name="el-zoom-in-top">
+      <div v-show="selectedIds.length > 0" class="batch-toolbar">
+        <div class="batch-info">
+          <el-icon><InfoFilled /></el-icon>
+          已选择 <strong>{{ selectedIds.length }}</strong> 个分类
+        </div>
+        <div class="batch-actions">
+          <el-button size="small" @click="clearSelection">取消选择</el-button>
+          <el-button size="small" type="danger" :icon="Delete" @click="handleBatchDelete">
+            批量删除
+          </el-button>
+        </div>
+      </div>
+    </transition>
+
+      <!-- 数据表格 -->
+      <el-table
+        v-loading="loading"
+        :data="filteredCategories"
+        style="width: 100%"
+        stripe
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="id" label="ID" width="80" />
+        
+        <el-table-column label="分类名称" min-width="200">
+          <template #default="{ row }">
+            <div class="category-info">
+              <div 
+                v-if="row.color"
+                class="category-color" 
+                :style="{ backgroundColor: row.color }"
+              />
+              <span class="category-name">{{ row.name }}</span>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="描述" min-width="250" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="text-muted">{{ row.description || '-' }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="文章数" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="getArticleCountType(row.article_count || 0)">
+              {{ row.article_count || 0 }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="sort_order" label="排序" width="100" align="center" />
+
+        <!-- 状态列 - 如果API支持 -->
+        <!-- <el-table-column label="状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-switch
+              v-model="row.is_active"
+              @change="handleStatusChange(row)"
+            />
+          </template>
+        </el-table-column> -->
+
+        <el-table-column label="创建时间" width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.created_at) }}
+          </template>
+        </el-table-column>
+
+        <el-table-column label="操作" width="180" fixed="right">
+          <template #default="{ row }">
+            <el-space>
+              <el-button
+                type="primary"
+                size="small"
+                :icon="Edit"
+                link
+                @click="handleEdit(row)"
+              >
+                编辑
+              </el-button>
+              <el-popconfirm
+                title="确定要删除这个分类吗？"
+                confirm-button-text="确定"
+                cancel-button-text="取消"
+                @confirm="handleDelete(row.id)"
+              >
+                <template #reference>
+                  <el-button
+                    type="danger"
+                    size="small"
+                    :icon="Delete"
+                    link
+                    :disabled="(row.article_count || 0) > 0"
+                  >
+                    删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </el-space>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 分页 -->
+      <div class="pagination">
+        <el-pagination
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.limit"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="pagination.total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
+        />
+      </div>
+
+    <!-- 创建/编辑对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="600px"
+      :close-on-click-modal="false"
+      @closed="resetForm"
+    >
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-width="100px"
+      >
+        <el-form-item label="分类名称" prop="name" required>
+          <el-input
+            v-model="formData.name"
+            placeholder="请输入分类名称"
+            maxlength="50"
+            show-word-limit
+            clearable
+          />
+        </el-form-item>
+
+        <el-form-item label="分类描述" prop="description">
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入分类描述（选填）"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item label="排序值" prop="sort_order">
+          <el-input-number
+            v-model="formData.sort_order"
+            :min="0"
+            :max="9999"
+            :step="1"
+            controls-position="right"
+            style="width: 200px"
+          />
+          <span class="form-tip">数值越小排序越靠前</span>
+        </el-form-item>
+
+        <!-- 主题颜色 - 如果API支持 -->
+        <!-- <el-form-item label="主题颜色">
+          <el-color-picker
+            v-model="formData.color"
+            :predefine="presetColors"
+          />
+        </el-form-item> -->
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="submitting"
+            @click="handleSubmit"
+          >
+            {{ isEdit ? '保存' : '创建' }}
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Plus, Refresh, Search, Edit, Delete, InfoFilled
+} from '@element-plus/icons-vue'
+import { getCategories, getCategoryById, createCategory, updateCategory, deleteCategory } from '@/api/category'
+import type { Category, CategoryFormData } from '@/types'
+
+// 响应式数据
+const loading = ref(false)
+const categories = ref<Category[]>([])
+const selectedIds = ref<number[]>([])
+const searchKeyword = ref('')
+const dialogVisible = ref(false)
+const isEdit = ref(false)
+const submitting = ref(false)
+
+// 分页
+const pagination = reactive({
+  page: 1,
+  limit: 20,
+  total: 0
+})
+
+// 表单
+const formRef = ref()
+const formData = ref<CategoryFormData>({
+  name: '',
+  description: '',
+  sort_order: 0
+})
+
+// 预设颜色（备用）
+// const presetColors = [
+//   '#1890ff', '#52c41a', '#faad14', '#f5222d',
+//   '#722ed1', '#13c2c2', '#eb2f96', '#fa541c'
+// ]
+
+// 表单验证规则
+const formRules = {
+  name: [
+    { required: true, message: '请输入分类名称', trigger: 'blur' },
+    { min: 1, max: 50, message: '分类名称长度在 1 到 50 个字符', trigger: 'blur' }
+  ]
+}
+
+// 计算属性
+const dialogTitle = computed(() => isEdit.value ? '编辑分类' : '新建分类')
+
+const filteredCategories = computed(() => {
+  let result = [...categories.value]
+  
+  // 搜索筛选
+  if (searchKeyword.value) {
+    const keyword = searchKeyword.value.toLowerCase()
+    result = result.filter(cat =>
+      cat.name.toLowerCase().includes(keyword) ||
+      (cat.description && cat.description.toLowerCase().includes(keyword))
+    )
+  }
+  
+  pagination.total = result.length
+  
+  // 分页
+  const start = (pagination.page - 1) * pagination.limit
+  const end = start + pagination.limit
+  return result.slice(start, end)
+})
+
+// 方法
+const fetchCategories = async () => {
+  loading.value = true
+  try {
+    const data = await getCategories()
+    categories.value = data as Category[]
+  } catch (error) {
+    ElMessage.error('获取分类列表失败')
+    console.error(error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleSearch = () => {
+  pagination.page = 1
+}
+
+const handleCreate = () => {
+  isEdit.value = false
+  dialogVisible.value = true
+}
+
+const handleEdit = async (row: Category) => {
+  try {
+    const data = await getCategoryById(row.id)
+    formData.value = {
+      name: data.name,
+      description: data.description || '',
+      sort_order: data.sort_order
+    }
+    isEdit.value = true
+    dialogVisible.value = true
+    // 保存当前编辑的ID
+    ;(formData.value as any).id = row.id
+  } catch (error) {
+    ElMessage.error('获取分类详情失败')
+    console.error(error)
+  }
+}
+
+const handleDelete = async (id: number) => {
+  try {
+    await deleteCategory(id)
+    ElMessage.success('删除成功')
+    await fetchCategories()
+  } catch (error) {
+    ElMessage.error('删除失败')
+    console.error(error)
+  }
+}
+
+const handleSubmit = async () => {
+  try {
+    await formRef.value?.validate()
+    submitting.value = true
+    
+    if (isEdit.value) {
+      const id = (formData.value as any).id
+      await updateCategory(id, formData.value)
+      ElMessage.success('更新成功')
+    } else {
+      await createCategory(formData.value)
+      ElMessage.success('创建成功')
+    }
+    
+    dialogVisible.value = false
+    await fetchCategories()
+  } catch (error: any) {
+    if (error !== false) { // 排除表单验证失败
+      ElMessage.error(isEdit.value ? '更新失败' : '创建失败')
+      console.error(error)
+    }
+  } finally {
+    submitting.value = false
+  }
+}
+
+// 状态切换 - 如果API支持
+// const handleStatusChange = async (row: Category) => {
+//   try {
+//     await updateCategory(row.id, { is_active: row.is_active })
+//     ElMessage.success(`分类已${row.is_active ? '启用' : '禁用'}`)
+//   } catch (error) {
+//     ElMessage.error('状态更新失败')
+//     row.is_active = !row.is_active
+//   }
+// }
+
+const resetForm = () => {
+  formData.value = {
+    name: '',
+    description: '',
+    sort_order: 0
+  }
+  formRef.value?.clearValidate()
+}
+
+const handleSizeChange = (size: number) => {
+  pagination.limit = size
+  pagination.page = 1
+}
+
+const handlePageChange = (page: number) => {
+  pagination.page = page
+}
+
+const handleSelectionChange = (selection: Category[]) => {
+  selectedIds.value = selection.map(item => item.id)
+}
+
+const clearSelection = () => {
+  selectedIds.value = []
+}
+
+const handleBatchDelete = async () => {
+  if (selectedIds.value.length === 0) {
+    ElMessage.warning('请选择要删除的分类')
+    return
+  }
+
+  // 检查是否有分类包含文章
+  const categoriesWithArticles = categories.value.filter(
+    cat => selectedIds.value.includes(cat.id) && (cat.article_count || 0) > 0
+  )
+  
+  if (categoriesWithArticles.length > 0) {
+    ElMessage.warning(
+      `选中的分类中有 ${categoriesWithArticles.length} 个包含文章，无法删除`
+    )
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedIds.value.length} 个分类吗？`,
+      '批量删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    loading.value = true
+    const promises = selectedIds.value.map(id => deleteCategory(id))
+    await Promise.all(promises)
+    
+    ElMessage.success(`成功删除 ${selectedIds.value.length} 个分类`)
+    selectedIds.value = []
+    await fetchCategories()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error('批量删除失败')
+      console.error(error)
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// 工具方法
+const formatDate = (date: string) => {
+  return new Date(date).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const getArticleCountType = (count: number) => {
+  if (count === 0) return 'info'
+  if (count < 5) return 'warning'
+  if (count < 20) return 'success'
+  return 'danger'
+}
+
+// 生命周期
+onMounted(() => {
+  fetchCategories()
+})
+</script>
+
+<style scoped lang="scss">
+.category-management {
+  .batch-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #ecf5ff;
+    border: 1px solid #d9ecff;
+    border-radius: 4px;
+    margin-bottom: 16px;
+
+    .batch-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #409eff;
+      font-size: 14px;
+
+      .el-icon {
+        font-size: 16px;
+      }
+
+      strong {
+        color: #409eff;
+        margin: 0 4px;
+      }
+    }
+
+    .batch-actions {
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+
+    .header-left {
+      h2 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+        color: #303133;
+      }
+
+      .subtitle {
+        margin: 8px 0 0;
+        font-size: 14px;
+        color: #909399;
+      }
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+  }
+
+  .search-bar {
+    margin-bottom: 20px;
+  }
+
+  .category-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .category-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .category-name {
+      font-weight: 500;
+    }
+  }
+
+  .text-muted {
+    color: #909399;
+  }
+
+  .pagination {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .form-tip {
+    margin-left: 10px;
+    font-size: 12px;
+    color: #909399;
+  }
+}
+</style>
