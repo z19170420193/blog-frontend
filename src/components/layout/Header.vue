@@ -175,6 +175,7 @@ const userStore = useUserStore()
 const navItems = [
   { path: '/', label: '首页', icon: 'lucide:home' },
   { path: '/article', label: '文章', icon: 'lucide:book-open' },
+  { path: '/moments', label: '说说', icon: 'lucide:message-circle' },
   { path: '/categories', label: '分类', icon: 'lucide:layout-grid' },
   { path: '/tags', label: '标签', icon: 'lucide:tags' },
   { path: '/about', label: '关于', icon: 'lucide:info' },

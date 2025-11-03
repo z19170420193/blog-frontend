@@ -16,5 +16,8 @@ export * as commentApi from './comment'
 // 媒体相关
 export * as mediaApi from './media'
 
+// 说说相关
+export * as momentApi from './moment'
+
 // 导出请求实例
 export { http } from './request'

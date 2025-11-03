@@ -59,6 +59,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/MediaManage.vue'),
         meta: { title: '媒体管理', requiresAuth: true },
       },
+      {
+        path: 'moments',
+        name: 'MomentManage',
+        component: () => import('@/views/admin/MomentManage.vue'),
+        meta: { title: '说说管理', requiresAuth: true },
+      },
       // {
       //   path: 'profile',
       //   name: 'Profile',

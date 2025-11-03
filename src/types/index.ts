@@ -66,3 +66,16 @@ export type {
   TimelineProps,
   TimelineGroup,
 } from './timeline'
+
+// 说说相关
+export type {
+  Moment,
+  MomentVisibility,
+  CreateMomentParams,
+  UpdateMomentParams,
+  GetMomentsParams,
+  MomentListResponse,
+  BatchDeleteMomentsParams,
+  BatchDeleteMomentsResponse,
+  TogglePinParams,
+} from './moment'
