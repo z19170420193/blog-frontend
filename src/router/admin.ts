@@ -65,6 +65,24 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/MomentManage.vue'),
         meta: { title: '说说管理', requiresAuth: true },
       },
+      {
+        path: 'projects',
+        name: 'ProjectManage',
+        component: () => import('@/views/admin/ProjectManage.vue'),
+        meta: { title: '项目管理', requiresAuth: true },
+      },
+      {
+        path: 'projects/create',
+        name: 'ProjectCreate',
+        component: () => import('@/views/admin/ProjectEdit.vue'),
+        meta: { title: '创建项目', requiresAuth: true },
+      },
+      {
+        path: 'projects/:id/edit',
+        name: 'ProjectEdit',
+        component: () => import('@/views/admin/ProjectEdit.vue'),
+        meta: { title: '编辑项目', requiresAuth: true },
+      },
       // {
       //   path: 'profile',
       //   name: 'Profile',

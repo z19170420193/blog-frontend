@@ -63,6 +63,18 @@ export const frontendRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/Moments.vue'),
         meta: { title: '说说' },
       },
+      {
+        path: 'projects',
+        name: 'Projects',
+        component: () => import('@/views/Projects.vue'),
+        meta: { title: '项目展示' },
+      },
+      {
+        path: 'projects/:id',
+        name: 'ProjectDetail',
+        component: () => import('@/views/ProjectDetail.vue'),
+        meta: { title: '项目详情' },
+      },
     ],
   },
   // 独立页面（无布局）

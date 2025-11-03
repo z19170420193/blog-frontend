@@ -79,3 +79,30 @@ export type {
   BatchDeleteMomentsResponse,
   TogglePinParams,
 } from './moment'
+
+// 项目相关
+export type {
+  Project,
+  ProjectType,
+  ProjectStatus,
+  ProjectListItem,
+  ProjectQueryParams,
+  CreateProjectParams,
+  UpdateProjectParams,
+  ProjectListResponse,
+  BatchDeleteProjectsParams,
+  BatchDeleteProjectsResponse,
+  BatchUpdateStatusParams,
+  BatchUpdateStatusResponse,
+  BatchUpdateFeaturedParams,
+  BatchUpdateFeaturedResponse,
+  TechStackStat,
+  ProjectTimelineYear,
+} from './project'
+
+export {
+  PROJECT_TYPE_OPTIONS,
+  PROJECT_STATUS_OPTIONS,
+  PROJECT_TYPE_MAP,
+  PROJECT_STATUS_MAP,
+} from './project'
