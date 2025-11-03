@@ -177,6 +177,7 @@ const navItems = [
   { path: '/article', label: '文章', icon: 'lucide:book-open' },
   { path: '/projects', label: '项目', icon: 'lucide:briefcase' },
   { path: '/moments', label: '说说', icon: 'lucide:message-circle' },
+  { path: '/guestbook', label: '留言', icon: 'lucide:message-square' },
   { path: '/categories', label: '分类', icon: 'lucide:layout-grid' },
   { path: '/tags', label: '标签', icon: 'lucide:tags' },
   { path: '/about', label: '关于', icon: 'lucide:info' },

@@ -75,6 +75,12 @@ export const frontendRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/ProjectDetail.vue'),
         meta: { title: '项目详情' },
       },
+      {
+        path: 'guestbook',
+        name: 'Guestbook',
+        component: () => import('@/views/Guestbook.vue'),
+        meta: { title: '留言板' },
+      },
     ],
   },
   // 独立页面（无布局）

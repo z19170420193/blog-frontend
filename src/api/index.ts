@@ -19,5 +19,8 @@ export * as mediaApi from './media'
 // 说说相关
 export * as momentApi from './moment'
 
+// 留言相关
+export * as messageApi from './message'
+
 // 导出请求实例
 export { http } from './request'

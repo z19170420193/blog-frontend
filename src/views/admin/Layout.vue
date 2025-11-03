@@ -46,6 +46,11 @@
           <template #title>评论管理</template>
         </el-menu-item>
 
+        <el-menu-item index="/admin/messages">
+          <el-icon><ChatLineSquare /></el-icon>
+          <template #title>留言管理</template>
+        </el-menu-item>
+
         <el-menu-item index="/admin/moments">
           <el-icon><ChatLineRound /></el-icon>
           <template #title>说说管理</template>
@@ -156,6 +161,7 @@ import {
   SwitchButton,
   Management,
   ChatLineRound,
+  ChatLineSquare,
   Briefcase,
 } from '@element-plus/icons-vue'
 import BackToTop from '@/components/common/BackToTop.vue'

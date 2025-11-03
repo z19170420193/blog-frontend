@@ -83,6 +83,12 @@ export const adminRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/ProjectEdit.vue'),
         meta: { title: '编辑项目', requiresAuth: true },
       },
+      {
+        path: 'messages',
+        name: 'MessageManage',
+        component: () => import('@/views/admin/MessageManage.vue'),
+        meta: { title: '留言管理', requiresAuth: true },
+      },
       // {
       //   path: 'profile',
       //   name: 'Profile',

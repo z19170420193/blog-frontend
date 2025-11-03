@@ -106,3 +106,21 @@ export {
   PROJECT_TYPE_MAP,
   PROJECT_STATUS_MAP,
 } from './project'
+
+// 留言相关
+export type {
+  Message,
+  MessageMood,
+  MessageStatus,
+  CreateMessageParams,
+  UpdateMessageParams,
+  GetMessagesParams,
+  GetAdminMessagesParams,
+  MessageListResponse,
+  BatchDeleteMessagesParams,
+  BatchDeleteMessagesResponse,
+  BatchApproveMessagesParams,
+  BatchApproveMessagesResponse,
+  UpdateMessageStatusParams,
+  MessageStatsResponse,
+} from './message'
